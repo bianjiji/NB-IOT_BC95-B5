@@ -1,0 +1,191 @@
+C51 COMPILER V9.53.0.0   UART                                                              05/07/2019 17:09:36 PAGE 1   
+
+
+C51 COMPILER V9.53.0.0, COMPILATION OF MODULE UART
+OBJECT MODULE PLACED IN ..\OBJ\UART.obj
+COMPILER INVOKED BY: D:\my software\worksoft\DXP&keil4&protues\MDK524\C51\BIN\C51.EXE ..\CORE\UART.c OPTIMIZE(8,SPEED) B
+                    -ROWSE INCDIR(..\CORE) DEBUG OBJECTEXTEND PRINT(.\Listings\UART.lst) OBJECT(..\OBJ\UART.obj)
+
+line level    source
+
+   1          #include <intrins.h>   
+   2          #include "UART.H"   
+   3          //缓存串口1和串口2标志符 
+   4          //bit UART1_Recv_flag = 0;   
+   5          //bit UART2_Recv_flag = 0;
+   6          #define S2RI 0x01    
+   7          #define S2TI 0x02    
+   8          //bit PM_flag = 0;
+   9          //uchar idata PM_ReData[9];
+  10          uchar flag1,temp1; 
+  11          void UART1_Init(uchar RELOAD, bit doubleBaud, bit timeMod)   
+  12          {   
+  13   1          SCON |= 0x50;                     //串口1方式1,接收充许      
+  14   1          BRT = RELOAD;                     //波特率9600   BRT=256-(11.0592M/32/9600/12^n) =0Xdc    
+  15   1          if (timeMod == 1)                 //1T   
+  16   1          {                                 //T0x12   T1x12   UM0x6   BRTR    S2SMOD  BRTx12  EXTRAM  S1BRS   
+  17   2              AUXR |= 0x15;                 //串口1使用独立波特率发生器，独立波特率发生器1T   
+  18   2          }   
+  19   1          else                              //12T   
+  20   1          {   
+  21   2              AUXR |= 0x11;   
+  22   2          }      
+  23   1          if (doubleBaud == 1)   
+  24   1          {   
+  25   2              PCON |= 0x80;                 //波特率加倍   
+  26   2          }   
+  27   1          else   
+  28   1          {   
+  29   2              PCON &= 0x7F;                  //波特率不加倍   
+  30   2          }   
+  31   1          EA = 1;   
+  32   1          ES = 1;                            //充许串口1中断  
+  33   1              
+  34   1      }    
+  35          void UART2_Init(uchar RELOAD, bit doubleBaud, bit timeMod)   
+  36          {   
+  37   1                                             //S2SM0  S2SM1   S2SM2   S2REN   S2TB8   S2RB8   S2TI     S2RI   
+  38   1          S2CON |= 0x50;                     //串口2,方式1，接收充许      
+  39   1          BRT = RELOAD;   
+  40   1          if (timeMod == 1)                  //1T   
+  41   1          {   
+  42   2                                             //T0x12   T1x12   UM0x6   BRTR    S2SMOD  BRTx12  EXTRAM  S1BRS   
+  43   2              AUXR |= 0x14;                  //串口1使用独立波特率发生器，独立波特率发生器1T   
+  44   2          }   
+  45   1          else                               //12T   
+  46   1          {   
+  47   2              AUXR = (AUXR | 0x10) & 0xFB;   
+  48   2          }   
+  49   1         
+  50   1          if (doubleBaud == 1)   
+  51   1          {   
+  52   2              AUXR |= 0x08;                   //波特率加倍   
+  53   2          }   
+  54   1          else   
+C51 COMPILER V9.53.0.0   UART                                                              05/07/2019 17:09:36 PAGE 2   
+
+  55   1          {   
+  56   2              AUXR &= 0xF7;                   //波特率不加倍   
+  57   2          }   
+  58   1              AUXR1 &= 0xef;                                          //串口2在P1口通信
+  59   1          EA = 1;                             //-   -   -    -    -    -     ESPI    ES2   
+  60   1          IE2 |= 0x01;                        //充许串口2中断              
+  61   1      }     
+  62          void UART1_SendOneChar(uchar val)   
+  63          {   
+  64   1          //ES = 0;                           //关闭串口1中断   
+  65   1         
+  66   1          SBUF = val;   
+  67   1          while(TI == 0);   
+  68   1          TI = 0;   
+  69   1         
+  70   1          //ES = 1;                           //恢复串口1中断   
+  71   1      }                             
+  72          void UART1_Send_data(uchar str[],uchar len)   
+  73          {   
+  74   1          uchar i =0;
+  75   1          for(;i<len;i++)   
+  76   1          {   
+  77   2              UART1_SendOneChar(str[i]);   
+  78   2          }   
+  79   1      }      
+  80          //void UART1_SendStr(uchar *str)   
+  81          //{   
+  82          //    while( (*str)!='\0' )   
+  83          //    {   
+  84          //        UART1_SendOneChar(*str);   
+  85          //        str++;   
+  86          //    }   
+  87          //}  
+  88          void UART1_SendOneByte(uchar val)   //发送1byte数据
+  89          {   
+  90   1          //ES = 0;                           //关闭串口1中断   
+  91   1         
+  92   1          SBUF = val;   
+  93   1          while(TI == 0);   
+  94   1          TI = 0;   
+  95   1         
+  96   1          //ES = 1;                           //恢复串口1中断   
+  97   1      }  
+  98          void UART2_SendOneChar(uchar val)   
+  99          {   
+ 100   1          //IE2 = 0x00;                       //关闭串口2中断      
+ 101   1          S2BUF = val;       
+ 102   1          while ((S2CON & 0x02) == 0);   
+ 103   1          S2CON &= 0xFD;      
+ 104   1          //IE2 = 0x01;                        //恢复串口2中断   
+ 105   1      }        
+ 106          void UART2_SendStr(uchar *str)   
+ 107          {   
+ 108   1          while( (*str)!='\0' )   
+ 109   1          {   
+ 110   2              UART2_SendOneChar(*str);   
+ 111   2              str++;   
+ 112   2          }   
+ 113   1      }   
+ 114          void UART2_Send_data(uchar str[],uchar len)   
+ 115          {   
+ 116   1          uchar i =0;
+C51 COMPILER V9.53.0.0   UART                                                              05/07/2019 17:09:36 PAGE 3   
+
+ 117   1          for(;i<len;i++)   
+ 118   1          {   
+ 119   2              UART2_SendOneChar(str[i]);   
+ 120   2          }   
+ 121   1      }  
+ 122          //重写putchar函数
+ 123          uchar putchar(uchar c)
+ 124          {
+ 125   1          UART1_SendOneByte(c);
+ 126   1          return c;
+ 127   1      }
+ 128          //void UART_2SendOneByte(uchar val)
+ 129          //{
+ 130          //    S2BUF = val;
+ 131          //    while(!(S2CON&S2TI));  //若S2TI=0,在此等待
+ 132          //    S2CON&=~S2TI;      //S2TI=0
+ 133          //}
+ 134            
+ 135          //void UART2_Senddat(uchar str[],uchar len)   
+ 136          //{   
+ 137          //    uchar i =0;
+ 138          //    for(;i<len;i++)   
+ 139          //    {   
+ 140          //        UART_2SendOneByte(str[i]);
+ 141          //        //UART1_SendOneByte(str[i]);                  
+ 142          //    }   
+ 143          //} 
+ 144          //void UART2_Int(void) interrupt 8   
+ 145          //{   
+ 146          
+ 147          //    if ((S2CON & 0x01) == 1)   
+ 148          //    {   
+ 149          //        S2CON &= 0xFE;   
+ 150          //        //PM_ReData[count] = S2BUF;
+ 151          //  
+ 152          //    }      
+ 153          //}  
+ 154          /************串口1中断*************/
+ 155          void UART_1Interrupt(void) interrupt 4
+ 156          {
+ 157   1              if(RI==1)
+ 158   1                      {
+ 159   2                              RI=0;
+ 160   2                              flag1=1;
+ 161   2                              temp1=SBUF;
+ 162   2                      }
+ 163   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    207    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      2       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       4
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

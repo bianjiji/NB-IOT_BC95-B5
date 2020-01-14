@@ -1,0 +1,1 @@
+"..\CORE\RhAndTemp.c" OPTIMIZE (8,SPEED) BROWSE INCDIR(..\CORE) DEBUG OBJECTEXTEND PRINT(.\Listings\RhAndTemp.lst) OBJECT(..\OBJ\RhAndTemp.obj)

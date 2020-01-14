@@ -1,0 +1,10 @@
+"..\OBJ\STARTUP.obj",
+"..\OBJ\LMS.obj",
+"..\OBJ\main.obj",
+"..\OBJ\12864.obj",
+"..\OBJ\delay.obj",
+"..\OBJ\Illumination.obj",
+"..\OBJ\UART.obj",
+"..\OBJ\RhAndTemp.obj" 
+TO "..\OBJ\基于窄带物联网通信的光照计设计" 
+PRINT(".\Listings\基于窄带物联网通信的光照计设计.m51") RAMSIZE(256) 

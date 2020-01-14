@@ -1,0 +1,296 @@
+C51 COMPILER V9.53.0.0   MAIN                                                              01/14/2020 13:57:31 PAGE 1   
+
+
+C51 COMPILER V9.53.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\OBJ\main.obj
+COMPILER INVOKED BY: D:\my software\worksoft\DXP&keil4&protues\MDK524\C51\BIN\C51.EXE ..\CORE\main.c OPTIMIZE(8,SPEED) B
+                    -ROWSE INCDIR(..\CORE) DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst) OBJECT(..\OBJ\main.obj)
+
+line level    source
+
+   1          #include "STC12C5A60S2.h"
+   2          #include "illumination.h"
+   3          #include "12864.h"
+   4          #include "delay.h"
+   5          #include "UART.h"
+   6          #include "RhAndTemp.h"
+   7          //#include "LMS.h"
+   8          #include <string.h>
+   9          #include <stdio.h>
+  10          /****************ºê¶¨Òå**************************/
+  11          #define uint unsigned int
+  12          #define uchar unsigned char
+  13          #define Buf2_Max 10  
+  14          #define S2RI 0x01  
+  15          /****************´®¿Ú³õÊ¼Öµ*********************/
+  16          #define  RELOAD      0xDC        //Fosc = 11.0592MHz, Baud0 = 9600  BRT=256-(11.0592M/32/9600/12^n)   
+  17          #define  doubleBaud  0                   //²¨ÌØÂÊÊÇ·ñ¼Ó±¶£¬0²»±¶£¬1¼Ó±¶ 
+  18          #define  timeMod     1           //¶ÀÁ¢²¨ÌØÂÊ·¢ÉúÆ÷,0Îª12TÄ£Ê½£¬1Îª1TÄ£Ê½
+  19          /************************±äÁ¿¶¨Òå****************/
+  20          uchar code theme_one[]   = "xxxxxxxxxxxxxxxx";
+  21          uchar code theme_two[]   = "  xxxxxxxxxxxx  ";
+  22          uchar code theme_three[] = "  xxxxxxxxxxxx  ";
+  23          uchar code theme_four[]  = "    xxxxxx      "; 
+  24          
+  25          uchar code dis_system[]  = "*****NB-IOT*****";
+  26          uchar code dis_illum[]   = "¹âÕÕ£º      Lux "; 
+  27          uchar code dis_temp[]    = "ÎÂ¶È£º      ¡æ  "; 
+  28          uchar code dis_humidty[] = "Êª¶È£º      %   "; 
+  29          uint  Light_buf = 0;          //»º´æ¹âÕÕÊý¾Ý
+  30          uint count=0,count1=0;Second_Int=0;            //¼ÆÊý
+  31          uchar UART_2Int_falg,temp2;//´®¿Ú2ÖÐ¶Ï±êÖ¾¼°»º´æ±äÁ¿
+  32          uchar LightBuff_Send_flag=0,LightBuff_Send_To_phone=0,num=0;
+  33          uchar sendDataBuf[30]={0};        //°ÑÒª·¢ËÍµÄÊý¾Ý×ª»»³ÉÊ®Áù½øÖÆÊý´æÈë´ý·¢ËÍµÄÊý×éÖÐ
+  34          uchar RxCounter,RxBuffer[10];     //½ÓÊÕ»º³å,×î´óUSART_REC_LEN¸ö×Ö½Ú.
+  35          uchar *strx;
+  36          extern uint temp_buf ;
+  37          extern uint Hum_buf;
+  38          uint Temperature, Humidty;
+  39          /************************º¯ÊýÉùÃ÷****************/
+  40          void dis_init_screen(void);
+  41          void dis_data_screen(void);
+  42          void IntConfiguration(void);
+  43          void SerialInti(void);
+  44          void BC95Init(void);
+  45          void Timer0_Init(void);
+  46          void DATAToHEX(uint light);
+  47          //void DATAToHEX(uint pm,uint temp,uint humid,uint light);
+  48          /*****************************************************************************
+  49          *º¯ÊýÃû       £ºmain
+  50          *º¯Êý¹¦ÄÜ     £º
+  51          *ÊäÈë         £º
+  52          *Êä³ö         £ºÎÞ
+  53          ******************************************************************************/
+  54          void main(void)
+C51 COMPILER V9.53.0.0   MAIN                                                              01/14/2020 13:57:31 PAGE 2   
+
+  55          {
+  56   1              Init_guangzhao();                    //¹âÕÕ³õÊ¼»¯
+  57   1              LCD12864_Init();                  //LCD12864Òº¾§ÆÁ³õÊ¼»¯
+  58   1              BC95Init();                      //NB_BC95-B5Ä£¿é³õÊ¼»¯
+  59   1              delay_nMs(10);
+  60   1              dis_init_screen();               //³õÊ¼»¯ÏÔÊ¾²Ëµ¥
+  61   1              delay_1s(1);
+  62   1              dis_data_screen();               //ÏÔÊ¾Êý¾Ý²Ëµ¥
+  63   1              Timer0_Init();                   //¶¨Ê±Æ÷0³õÊ¼»¯
+  64   1              SerialInti();                    //´®¿Ú³õÊ¼»¯
+  65   1              UART1_Init( RELOAD,  doubleBaud,  timeMod);//UART1ÅäÖÃ
+  66   1              UART2_Init( RELOAD,  doubleBaud,  timeMod);//UART2ÅäÖÃ
+  67   1              while(1)
+  68   1                 {
+  69   2                         
+  70   2                         Light_buf = Get_guangzhao();                    //²É¼¯¹âÕÕ
+  71   2                         memset(sendDataBuf,0,sizeof(sendDataBuf));       //Çå¿ÕÊý×ésendDataBuf[];
+  72   2                         //printf("¹âÕÕÇ¿¶È:%dLux\r\n",Light_buf);
+  73   2                         RHAndTemp();//²É¼¯ÎÂÊª¶È
+  74   2                         Temperature=temp_buf;
+  75   2                         Humidty=Hum_buf;
+  76   2                         Dispaly_tempAndHumidty(Temperature ,Humidty );//ÏÔÊ¾ÎÂÊª¶È
+  77   2                         if(LightBuff_Send_To_phone==1)//µ½´ï1s£¬ÉÏ´«Êý¾Ý
+  78   2                         {
+  79   3                                 LightBuff_Send_To_phone=0;
+  80   3                                 DATAToHEX(Light_buf);
+  81   3                                 //Í¨¹ý´®¿Ú1 ·¢ËÍÊý¾Ý
+  82   3                             UART1_Send_data(sendDataBuf,5);
+  83   3                         
+  84   3                         }
+  85   2                  
+  86   2                         
+  87   2                         else if(LightBuff_Send_flag==1)//µ½´ï1·ÖÖÓ£¬ÉÏ´«Êý¾Ý
+  88   2                         {
+  89   3                                 
+  90   3                                 LightBuff_Send_flag=0;
+  91   3                                 sprintf(&sendDataBuf[0], "AT+NMGS=5,00%08x\r\n",Light_buf);//½«²É¼¯µ½µÄ¹âÕÕÊý¾Ý×ª»»³ÉÊ®Áù½øÖÆÉÏ±ãÓÚÆ
+             -½Ì¨½âÎö                                
+  92   3                                 printf("%s\r\n",sendDataBuf);                              //ÑéÖ¤Êý¾ÝÊÇ·ñÕýÈ·£¬¿ÉÒÔ×¢ÊÍµô²»ÓÃ¡£
+  93   3                                 UART2_Send_data(sendDataBuf,30) ;                          //ÀûÓÃµ¥Æ¬»ú´®¿Ú2ÏòNBÄ£×é·¢ËÍÊý¾ÝÉÏ±¨µ½ÔÆ
+             -Æ½Ì¨
+  94   3                                 TR0 = 1; 
+  95   3                                 EA = 1;
+  96   3                              }
+  97   2      
+  98   2      //                 DATAToHEX(0,temp_buf,Humidty_buf,Light_buf);
+  99   2                               
+ 100   2      
+ 101   2                         
+ 102   2                      }
+ 103   1                
+ 104   1      }
+ 105          /*****************************************************************************
+ 106          *º¯ÊýÃû       £ºvoid DATAToHEX(uint light)
+ 107          *º¯Êý¹¦ÄÜ     :
+ 108                                  Ç°2Î»×÷ÎªÖ¡Í·    ×îºóÒ»Î»×÷ÎªÖ¡Î²   ÖÐ¼äÎªÊý¾Ý 
+ 109                                  2¸öÎ»µÄÊý¾Ý´æÈëÒ»¸öunsigned intµÄÊý¾Ý  
+ 110                                  »º´æÊý×éµÄµÍÎ»´æÈëÒ»¸ö´«¸ÐÆ÷Êý¾ÝµÄ¸ß°ËÎ»£¬
+ 111                                  »º´æÊý×éµÄ¸ßÎ»´æÈëÒ»¸ö´«¸ÐÆ÷Êý¾ÝµÄµÍ°ËÎ»
+ 112          ******************************************************************************/
+ 113          
+ 114          void DATAToHEX(uint light)
+C51 COMPILER V9.53.0.0   MAIN                                                              01/14/2020 13:57:31 PAGE 3   
+
+ 115          {
+ 116   1      
+ 117   1          sendDataBuf[0] =  0x88;       //Ö¡Í·
+ 118   1              sendDataBuf[1] =  0x66;
+ 119   1              sendDataBuf[2] =  light/256;
+ 120   1              sendDataBuf[3] =  light%256;
+ 121   1              sendDataBuf[4] = 0xaa;               //Ö¡Î²                                     
+ 122   1      }
+ 123          
+ 124          void SerialInti(void)//³õÊ¼»¯³ÌÐò£¨±ØÐëÊ¹ÓÃ£¬·ñÔòÎÞ·¨ÊÕ·¢£©
+ 125          {
+ 126   1      
+ 127   1              TH1=0xfd;  //×°Èë³õÖµ£¬²¨ÌØÂÊ9600
+ 128   1              TL1=0xfd;
+ 129   1              TR1=1;   //´ò¿ª¶¨Ê±Æ÷
+ 130   1              SM0=0;   //ÉèÖÃ´®ÐÐÍ¨Ñ¶¹¤×÷Ä£Ê½£¬£¨10ÎªÒ»²¿·¢ËÍ£¬²¨ÌØÂÊ¿É±ä£¬ÓÉ¶¨Ê±Æ÷1µÄÒç³öÂÊ¿ØÖÆ£©
+ 131   1              SM1=1;   //(Í¬ÉÏ)ÔÚ´ËÄ£Ê½ÏÂ£¬¶¨Ê±Æ÷Òç³öÒ»´Î¾Í·¢ËÍÒ»¸öÎ»µÄÊý¾Ý
+ 132   1              REN=1;   //´®ÐÐ½ÓÊÕÔÊÐíÎ»£¨ÒªÏÈÉèÖÃsm0sm1ÔÙ¿ª´®ÐÐÔÊÐí£©  
+ 133   1          TI=0;
+ 134   1              RI=0;   
+ 135   1              EA=1; //        //¿ª×ÜÖÐ¶Ï      
+ 136   1              ES=1;      //´®ÐÐ¿ÚÖÐ¶Ï¿ª  
+ 137   1      
+ 138   1      }
+ 139          /*****************************************************************************
+ 140          *º¯ÊýÃû       £ºdis_init_screen
+ 141          *º¯Êý¹¦ÄÜ     £º³õÊ¼»¯²Ëµ¥
+ 142          *ÊäÈë         £º
+ 143          *Êä³ö         £ºÎÞ
+ 144          ******************************************************************************/
+ 145          void dis_init_screen(void)
+ 146          {
+ 147   1              LCD12864_WriteString(1,0,theme_one);
+ 148   1              LCD12864_WriteString(2,0,theme_two);
+ 149   1              LCD12864_WriteString(3,0,theme_three);
+ 150   1              LCD12864_WriteString(4,0,theme_four);
+ 151   1      }
+ 152          /*****************************************************************************
+ 153          *º¯ÊýÃû       £ºdis_data_screen
+ 154          *º¯Êý¹¦ÄÜ     £º³õÊ¼»¯²Ëµ¥Êý¾Ý
+ 155          *ÊäÈë         £º
+ 156          *Êä³ö         £ºÎÞ
+ 157          ******************************************************************************/
+ 158          void dis_data_screen(void)
+ 159          {
+ 160   1              LCD12864_WriteString(1,0,dis_system);
+ 161   1              LCD12864_WriteString(2,0,dis_illum);
+ 162   1              LCD12864_WriteString(3,0,dis_temp);
+ 163   1              LCD12864_WriteString(4,0,dis_humidty);
+ 164   1      }
+ 165          
+ 166          /*****************************************************************************
+ 167          *º¯ÊýÃû       £ºBC95Init
+ 168          *º¯Êý¹¦ÄÜ     £º³õÊ¼»¯NB¡ªBC95Ä£×é
+ 169          *ÊäÈë         £º
+ 170          *Êä³ö         £ºÎÞ
+ 171          ******************************************************************************/
+ 172          void BC95Init(void)
+ 173          {
+ 174   1              //delay_nMs(500);//µÈ´ýBC95³õÊ¼»¯
+ 175   1              delay_nMs(100);
+ 176   1              UART2_SendStr("AT+NCDP=139.159.140.34,5683\r\n");//ÉèÖÃCDP£¨µçÐÅÔÆµÄIPµØÖ·£©
+C51 COMPILER V9.53.0.0   MAIN                                                              01/14/2020 13:57:31 PAGE 4   
+
+ 177   1          delay_nMs(100);     
+ 178   1              UART2_SendStr("AT+NRB\r\n");                     //Èí¼þ¸´Î»NBÄ£¿é
+ 179   1          delay_nMs(100);                                        
+ 180   1              UART2_SendStr("AT+NNMI=1\r\n");                  //Í¨¹ýNBÄ£¿é×Ô¶¯ÊÕÖ¸Áî
+ 181   1              delay_nMs(100);
+ 182   1              UART2_SendStr("AT+CGATT=1\r\n");                 //ÉèÖÃNBÄ£¿éµÄÍøÂçÁ¬½Ó
+ 183   1              delay_nMs(100); 
+ 184   1      }
+ 185          ///*****************************************************************************
+ 186          //*º¯ÊýÃû       £º void CLR_Buf2(void)
+ 187          //*º¯Êý¹¦ÄÜ     £ºÇå³ý»º´æÊý¾Ýº¯Êý£¨´®¿Ú2£©
+ 188          //*ÊäÈë         £º
+ 189          //*Êä³ö         £ºÎÞ
+ 190          //******************************************************************************/
+ 191          //void CLR_Buf2(void)
+ 192          //{
+ 193          //    uint k;
+ 194          //    for(k=0;k<Buf2_Max;k++)     
+ 195          //    {
+ 196          //        RxBuffer[k] = 0;
+ 197          //    }
+ 198          //    Second_Int = 0;              
+ 199          //}
+ 200          /*****************************************************************************
+ 201          *º¯ÊýÃû       £ºTimer0_Init
+ 202          *º¯Êý¹¦ÄÜ     £º¶¨Ê±Æ÷0³õÊ¼»¯
+ 203          *ÊäÈë         £º
+ 204          *Êä³ö         £ºÎÞ
+ 205          ******************************************************************************/
+ 206          void Timer0_Init(void)
+ 207          {
+ 208   1      
+ 209   1          AUXR = 0x80;                    //timer0 work in 1T mode==1TÄ£Ê½
+ 210   1          TMOD |= 0x01;                    //set timer0 as mode1 (16-bit)
+ 211   1              TL0 = 0xCD;             
+ 212   1              TH0 = 0xD4;             //1ms
+ 213   1              TF0 = 0;
+ 214   1          TR0 = 1;                        //timer0 start running
+ 215   1          ET0 = 1;                        //enable timer0 interrupt
+ 216   1              EA  = 1;
+ 217   1              //count = 0;
+ 218   1      }
+ 219          /*****************************************************************************
+ 220          *º¯ÊýÃû       £ºtm0_isr() interrupt 1 using 1
+ 221          *º¯Êý¹¦ÄÜ     £º¶¨Ê±Æ÷ÖÐ¶Ï·þÎñ×Óº¯Êý
+ 222          *ÊäÈë         £º
+ 223          *Êä³ö         £ºÎÞ
+ 224          ******************************************************************************/
+ 225          void timer0_isr() interrupt 1 
+ 226          {
+ 227   1              TL0 = 0xCD;             
+ 228   1              TH0 = 0xD4;             //1ms
+ 229   1              count++;
+ 230   1          if (count>1000)               //10ms * 100 -> 1s
+ 231   1          {
+ 232   2                      count1++;
+ 233   2                      count=0; 
+ 234   2                      LightBuff_Send_To_phone = 1;
+ 235   2                      if(count1>60)
+ 236   2              {       count1 = 0;               //reset counter
+ 237   3                              LightBuff_Send_flag = 1;   
+ 238   3                              EA=0;
+C51 COMPILER V9.53.0.0   MAIN                                                              01/14/2020 13:57:31 PAGE 5   
+
+ 239   3                              TR0=0;
+ 240   3                      }
+ 241   2              }
+ 242   1      }
+ 243          /*****************************************************************************
+ 244          *º¯ÊýÃû       £ºUART_2Interrupt(void) interrupt 8
+ 245          *º¯Êý¹¦ÄÜ     £º´®¿Ú2ÖÐ¶Ï·þÎñ×Óº¯Êý
+ 246          *ÊäÈë         £º
+ 247          *Êä³ö         £ºÎÞ
+ 248          ******************************************************************************/
+ 249          void UART_2Interrupt(void) interrupt 8
+ 250          {
+ 251   1              IE2 = 0x00;                       //¹Ø±Õ´®¿Ú2ÖÐ¶Ï  
+ 252   1              if(S2CON&S2RI)
+ 253   1                      {
+ 254   2                              S2CON&=~S2RI;
+ 255   2                              UART_2Int_falg=1;
+ 256   2                              RxBuffer[Second_Int++]=S2BUF;
+ 257   2                              if(Second_Int>Buf2_Max) 
+ 258   2                                      { Second_Int=0;}
+ 259   2                      } 
+ 260   1              IE2 = 0x01;                        //»Ö¸´´®¿Ú2ÖÐ¶Ï
+ 261   1      }
+ 262          #endif
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    568    ----
+   CONSTANT SIZE    =    224    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     61    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

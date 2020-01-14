@@ -1,0 +1,1 @@
+"..\CORE\Illumination.c" OPTIMIZE (8,SPEED) BROWSE INCDIR(..\CORE) DEBUG OBJECTEXTEND PRINT(.\Listings\Illumination.lst) OBJECT(..\OBJ\Illumination.obj)
